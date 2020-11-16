@@ -54,15 +54,10 @@ function visualize() {
 function computeLogArray(array) {
     var logArray = new Uint8Array(80);
     logArray.fill(0);
-    var li, start, offset;
-    for (var i = 8; i < array.length; i++) {
-        li = Math.floor(Math.log2(i)) - 3;
-        start = 8 * li;
-        offset = Math.floor(i/Math.pow(2, li)) - 8;
-        logArray[start+offset] = array[i]
-        // logArray[start+offset] += Math.floor(array[i]/(li+1));
+    
+    for (var i = 0; i < 80; i++) {
+        logArray[i] = array[Math.floor(Math.pow(2, i/8+3))];
     }
-    // console.log(logArray);
     return logArray;
 }
 
