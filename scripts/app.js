@@ -17,39 +17,35 @@ function startAudio() {
     source.connect(analyserNode);
     source.connect(context.destination);
     audio.play();
-}
+};
 
 function visualize() {
     WIDTH = canvas.width;
     HEIGHT = canvas.height;
-    var bufferLength = analyserNode.frequencyBinCount;
-    var dataArray = new Uint8Array(bufferLength);
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
 
     canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
 
-    var drawAlt = function() {
+    const drawAlt = function() {
         drawVisual = requestAnimationFrame(drawAlt);
 
         analyserNode.getByteFrequencyData(dataArray);
-        var logLength = 80;
-        var logArray = computeLogArray(dataArray);
+        const logLength = 80;
+        const logArray = computeLogArray(dataArray);
 
-        var barWidth = (WIDTH / logLength);
-        var barHeight;
-        var x = 0;
+        const barWidth = (WIDTH / logLength);
 
         canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
         for (var i = 0; i < logLength; i++) {
-            barHeight = logArray[i] * 10;
+            let barHeight = logArray[i] * 10;
 
             canvasCtx.fillStyle = "rgb(' + (barHeight+100) + ', 50, 50)";
-            canvasCtx.fillRect(x,HEIGHT-barHeight/10,barWidth,barHeight/10);
-
-            x += barWidth + 1;
+            canvasCtx.fillRect(i * (barWidth + 1), HEIGHT-barHeight/10, barWidth, barHeight/10);
         }
-    }
+    };
     drawAlt();
-}
+};
 
 function computeLogArray(array) {
     var logArray = new Uint8Array(80);
@@ -58,8 +54,9 @@ function computeLogArray(array) {
     for (var i = 0; i < 80; i++) {
         logArray[i] = array[Math.floor(Math.pow(2, i/8+3))];
     }
+    
     return logArray;
-}
+};
 
 window.onclick = function() {
     if (!started) {
@@ -67,4 +64,4 @@ window.onclick = function() {
         this.startAudio();
         this.visualize();
     }
-}
+};
