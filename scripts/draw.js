@@ -2,11 +2,13 @@
 // init() once the page has finished loading.
 // window.onload = init;
 
+var context;
 var filters;
+var handles;
 var started = false;
 var frequency = 2000;
 var resonance = 5;
-var gain = 2;
+var gain = 0;
 
 var canvas;
 var canvasContext;
@@ -17,6 +19,7 @@ var curveColor = "rgb(224,27,106)";
 var playheadColor = "rgb(80, 100, 80)";
 var gridColor = "rgb(100,100,100)";
 var textColor = "rgb(81,127,207)";
+var rtColor = "rgb(40, 200, 40)";
 
 var dbScale = 60;
 var pixelsPerDb;
@@ -25,28 +28,24 @@ var height;
 
 var numFilters = 5;
 
-function startAudio() {
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    const context = new AudioContext();
-    // analyserNode = context.createAnalyser();
-    // const audio = new Audio("project-22955.wav");
-    // const source = context.createMediaElementSource(audio);
-    // console.log(context.sampleRate);
-    // analyserNode.fftSize = 16384;
-    // source.connect(analyserNode);
-    // source.connect(context.destination);
-    // audio.play();
+function dbToY(db) {
+  var y = (0.5 * height) - pixelsPerDb * db;
+  return y;
 }
 
-function dbToY(db) {
-    var y = (0.5 * height) - pixelsPerDb * db;
-    return y;
+function yToDb(y) {
+  var db = ((0.5 * height)-y)/pixelsPerDb;
+  return db;
+}
+
+function getFrequencyValue(frequency) {
+  var nyquist = context.sampleRate/2;
+  var index = Math.round(frequency/nyquist * freqDomain.length);
+  return freqDomain[index];
 }
 
 function drawCurve() {
     // draw center
-    width = canvas.width;
-    height = canvas.height;
 
     canvasContext.clearRect(0, 0, width, height);
 
@@ -81,7 +80,6 @@ function drawCurve() {
             return 20.0 * Math.log(response) + dbResponses[idx];
           });
     }
-
     
     for (var i = 0; i < width; ++i) {
         var x = i;
@@ -95,7 +93,28 @@ function drawCurve() {
     canvasContext.stroke();
     canvasContext.beginPath();
     canvasContext.lineWidth = 1;
+    canvasContext.strokeStyle = rtColor;
+
+    // Draw real-time curve
+
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Float32Array(bufferLength);
+    analyserNode.getFloatFrequencyData(dataArray);
+    for (var i = 0; i < width; i++) {
+      var index = Math.round(frequencyHz[i]/nyquist * dataArray.length);
+      value = dataArray[index];
+      y = dbToY(value+50)
+      // y = height - value * height / 255;
+      if ( i == 0 )
+          canvasContext.moveTo(i, y);
+      else
+          canvasContext.lineTo(i, y);
+    }
+    canvasContext.stroke();
+    canvasContext.beginPath();
+    canvasContext.lineWidth = 1;
     canvasContext.strokeStyle = gridColor;
+    
     
     // Draw frequency scale.
     for (var octave = 0; octave <= noctaves; octave++) {
@@ -136,63 +155,107 @@ function drawCurve() {
         canvasContext.lineTo(width, y);
         canvasContext.stroke();
     }
+
+    setTimeout(drawCurve, 50);
 }
 
-function frequencyHandler(event, ui, index) {
-  var value = ui.value;
+function frequencyUIValueToCutoff(value) {
   var nyquist = context.sampleRate * 0.5;
   var noctaves = Math.log(nyquist / 10.0) / Math.LN2;
   var v2 = Math.pow(2.0, noctaves * (value - 1.0));
   var cutoff = v2*nyquist;
-  
-  var info = document.getElementById("frequency-value" + index);
-  info.innerHTML = "frequency = " + (Math.floor(cutoff*100)/100) + " Hz";
+  return cutoff;
+}
 
-  filters[index].frequency.value = cutoff;
-  drawCurve();
+function frequencyHandler(event, ui, index) {
+  var cutoff = frequencyUIValueToCutoff(ui.value);
+  updateFrequency(cutoff, index);
+}
+
+function updateFrequency(value, index) {
+  var info = document.getElementById("frequency-value" + index);
+  info.innerHTML = "frequency = " + (Math.floor(value*100)/100) + " Hz";
+  filters[index].frequency.value = value;
 }
 
 function resonanceHandler(event, ui, index) {
   var value = ui.value;
+  updateResonance(value, index);
+}
 
+function updateResonance(value, index) {
   var info = document.getElementById("Q-value" + index);
   info.innerHTML = "Q = " + (Math.floor(value*100)/100) + " dB";
-  
   filters[index].Q.value = value;
-  drawCurve();
 }
 
 function gainHandler(event, ui, index) {
   var value = ui.value;
+  updateGain(value, index);
+}
 
+function updateGain(value, index) {
   var info = document.getElementById("gain-value" + index);
   info.innerHTML = "gain = " + (Math.floor(value*100)/100);
-  
   filters[index].gain.value = value;
-  drawCurve();
 }
 
 
 function initAudio() {
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    context = new AudioContext();
+    analyserNode = context.createAnalyser();
+    const audio = new Audio("project-22955.wav");
+    const source = context.createMediaElementSource(audio);
+    analyserNode.fftSize = 8192;
+    analyserNode.minDecibels = -100;
+    analyserNode.maxDecibels = 0;
+
     filters = []
     for (var i = 0; i < numFilters; i++) {
-        var filter = context.createBiquadFilter();
-        filter.Q.value = 5;
-        filter.frequency.value = 2000;
-        filter.gain.value = 2;
-        filter.connect(context.destination);
-        filters.push(filter);
+      var filter = context.createBiquadFilter();
+      filter.type = "allpass";
+      filter.Q.value = 5;
+      filter.frequency.value = 2000;
+      filter.gain.value = 2;
+      // filter.connect(context.destination);
+      filters.push(filter);
     }
+    filters[numFilters-1].connect(context.destination);
+    filters[numFilters-1].connect(analyserNode);
+    for (var i = numFilters-1; i >=1; i--) {
+      filters[i-1].connect(filters[i])
+    }
+    source.connect(filters[0]);
+    audio.play();
 }
 
 function init() {
-    context = new window.AudioContext || window.webkitAudioContext;
+    // context = new window.AudioContext || window.webkitAudioContext;
+    canvas = document.getElementById('canvasID');
+    canvasContext = canvas.getContext('2d');
+    canvasWidth = parseFloat(window.getComputedStyle(canvas, null).width);
+    canvasHeight = parseFloat(window.getComputedStyle(canvas, null).height);
+
+    width = canvas.width;
+    height = canvas.height;
+
+    let container = document.querySelector("#eq-svg");
+
+    handles = []
+    for (var i = 0; i < numFilters; i++) {
+      handle = new FilterHandle(80+80*i, 125, 6, i, i);
+      handles.push(handle);
+      container.append(handle.parent);
+    }
 
     initAudio();
     var filterHTML = "";
     for (var i = 0; i < numFilters; i++) {
+        var uiCutoff = Math.floor(frequencyUIValueToCutoff(handles[i].x/canvas.width)*100)/100;
         filterHTML += `<p>Filter ${i}: 
         <select onchange="changeFilterType(this.value, ${i});">
+          <option value="allpass">AllPass</option>
           <option value="lowpass">LowPass</option>
           <option value="highpass">HighPass</option>
           <option value="bandpass">BandPass</option>
@@ -200,31 +263,25 @@ function init() {
           <option value="highshelf">HighShelf</option>
           <option value="peaking">Peaking</option>
           <option value="notch">Notch</option>
-          <option value="allpass">AllPass</option>
         </select></p>
 
         <div>
           <input id="frequencySlider${i}" type="range" min="0" max="1" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="frequency-value${i}" style="position:relative; top:-5px;">frequency = 1277.46 Hz</span>
+          <span id="frequency-value${i}" style="position:relative; top:-5px;">frequency = ${uiCutoff} Hz</span>
         </div>
         <div>
           <input id="QSlider${i}" type="range" min="0" max="20" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="Q-value${i}" style="position:relative; top:-5px;">Q = 8.59 dB</span>
+          <span id="Q-value${i}" style="position:relative; top:-5px;">Q = 5 dB</span>
         </div>
         <div>
           <input id="gainSlider${i}" type="range" min="0" max="5" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="gain-value${i}" style="position:relative; top:-5px;">gain = 3.12</span>
+          <span id="gain-value${i}" style="position:relative; top:-5px;">gain = 0</span>
         </div>`;
     }
     document.getElementById('filterSettings').innerHTML = filterHTML;
     
-    canvas = document.getElementById('canvasID');
-    canvasContext = canvas.getContext('2d');
-    canvasWidth = parseFloat(window.getComputedStyle(canvas, null).width);
-    canvasHeight = parseFloat(window.getComputedStyle(canvas, null).height);
-
     for (var i = 0; i < numFilters; i++) {
-        configureSlider("frequency", .68, 0, 1, frequencyHandler, i);
+        configureSlider("frequency", handles[i].x/canvas.width, 0, 1, frequencyHandler, i);
         configureSlider("Q", resonance, 0, 20, resonanceHandler, i);
         configureSlider("gain", gain, -10, 10, gainHandler, i);
         drawCurve();
@@ -233,7 +290,6 @@ function init() {
 
 function changeFilterType( value, index ) {
   filters[index].type = value;
-  drawCurve();
 }
 
 function configureSlider(name, value, min, max, handler, index) {
@@ -250,8 +306,75 @@ function configureSlider(name, value, min, max, handler, index) {
 window.onclick = function() {
     if (!started) {
         started = true;
-        this.startAudio();
         this.init();
         // this.visualize();
     }
+}
+
+class FilterHandle {
+
+  constructor(x, y, radius, name, index) {
+     let svgns = "http://www.w3.org/2000/svg";
+     this.x = x;
+     this.y = y;
+     this.radius = radius;
+     this.index = index;
+
+     this.parent = document.createElementNS(svgns, 'g');
+     this.parent.setAttribute('transform', `translate(${x}, ${y})`);
+
+     this.dot = document.createElementNS(svgns, 'circle');
+     this.dot.setAttribute('cx', 0);
+     this.dot.setAttribute('cy', 0);
+     this.dot.setAttribute('r', radius);
+     this.dot.classList.add("filter-dot");
+
+     let text = document.createElementNS(svgns, 'text');
+     text.setAttribute('x', 0);
+     text.setAttribute('y', radius + 13);
+     text.classList.add("filter-name");
+     text.innerHTML = name;
+
+     this.parent.append(this.dot);
+     this.parent.append(text);
+
+     this.dragging = false;
+
+     // mouse down event
+     let self = this;
+     this.dot.onmousedown = function(e) { self.touchDown(e); };
+     document.addEventListener("mousemove", (e) => self.touchDrag(e));
+     document.addEventListener("mouseup", (e) => self.touchUp(e));
+  }
+  
+  touchDown(e) {
+      this.dragging = true;
+     this.dot.classList.add('dragging');
+  }
+  
+  touchDrag(e) {
+     if (this.dragging) {
+        let touch = this.screenToSVG(e.clientX, e.clientY);
+        this.x = touch.x;
+        this.y = touch.y;
+        updateFrequency(frequencyUIValueToCutoff(this.x/width), this.index);
+        updateGain(yToDb(this.y), this.index)
+        this.parent.setAttribute("transform", `translate(${touch.x}, ${touch.y})`);
+     }
+  }
+  
+  touchUp(e) {
+     if (this.dragging) {
+        this.dot.classList.remove('dragging');
+        this.dragging = false;
+     }
+  }
+
+  screenToSVG(sx, sy) {
+     let xform = this.parent.ownerSVGElement.createSVGPoint();
+     let matrix = this.parent.ownerSVGElement.getScreenCTM().inverse();
+     xform.x = sx;
+     xform.y = sy;
+     return xform.matrixTransform(matrix);
+  }
 }
