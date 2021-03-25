@@ -348,13 +348,13 @@ class FilterHandle {
   touchDrag(e) {
      if (this.dragging) {
         let touch = this.screenToSVG(e.clientX, e.clientY);
-        this.x = touch.x;
-        this.y = touch.y;
+        this.x = Math.min(width, Math.max(touch.x, 0));
+        this.y = Math.min(height, Math.max(touch.y, 0));
         this.frequency = frequencyUIValueToCutoff(this.x/width)
         this.gain = yToDb(this.y)
         updateFrequency(frequencyUIValueToCutoff(this.x/width), this.index);
         updateGain(yToDb(this.y), this.index)
-        this.parent.setAttribute("transform", `translate(${touch.x}, ${touch.y})`);
+        this.parent.setAttribute("transform", `translate(${this.x}, ${this.y})`);
      }
   }
   
