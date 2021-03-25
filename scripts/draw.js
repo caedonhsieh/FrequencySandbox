@@ -172,7 +172,7 @@ function frequencyHandler(event, ui, index) {
 
 function updateFrequency(value, index) {
   var info = document.getElementById("frequency-value" + index);
-  info.innerHTML = "frequency = " + (Math.floor(value*100)/100) + " Hz";
+  info.innerHTML = "freq = " + (Math.floor(value*100)/100) + " Hz";
   filters[index].frequency.value = value;
 }
 
@@ -253,37 +253,29 @@ function init() {
     var filterHTML = "";
     for (var i = 0; i < numFilters; i++) {
         var uiCutoff = Math.floor(handles[i].frequency*100)/100;
-        filterHTML += `<p>Filter ${i}: 
-        <select onchange="changeFilterType(this.value, ${i});">
-          <option value="allpass">AllPass</option>
-          <option value="lowpass">LowPass</option>
-          <option value="highpass">HighPass</option>
-          <option value="bandpass">BandPass</option>
-          <option value="lowshelf">LowShelf</option>
-          <option value="highshelf">HighShelf</option>
-          <option value="peaking">Peaking</option>
-          <option value="notch">Notch</option>
-        </select></p>
-
-        <div>
-          <input id="frequencySlider${i}" type="range" min="0" max="1" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="frequency-value${i}" style="position:relative; top:-5px;">frequency = ${uiCutoff} Hz</span>
-        </div>
-        <div>
-          <input id="QSlider${i}" type="range" min="0" max="20" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="Q-value${i}" style="position:relative; top:-5px;">Q = 5 dB</span>
-        </div>
-        <div>
-          <input id="gainSlider${i}" type="range" min="0" max="5" step="0.01" value="0" style="height: 20px; width: 200px;">
-          <span id="gain-value${i}" style="position:relative; top:-5px;">gain = 0</span>
+        filterHTML += `<div>Filter ${i}: 
+          <select onchange="changeFilterType(this.value, ${i});">
+            <option value="allpass">AllPass</option>
+            <option value="lowpass">LowPass</option>
+            <option value="highpass">HighPass</option>
+            <option value="bandpass">BandPass</option>
+            <option value="lowshelf">LowShelf</option>
+            <option value="highshelf">HighShelf</option>
+            <option value="peaking">Peaking</option>
+            <option value="notch">Notch</option>
+          </select>
+          <span id="frequency-value${i}" style="position:relative; top:-5px; display: inline-block; width: 150px;">freq = ${uiCutoff} Hz</span>
+          <span id="gain-value${i}" style="position:relative; top:-5px; display: inline-block; width: 100px;">gain = 0</span>
+          <span id="Q-value${i}" style="position:relative; top:-5px; display: inline-block; width: 100px;">Q = 5 dB</span>
+          <input id="QSlider${i}" type="range" min="0" max="20" step="0.01" value="0" style="height: 20px; width: 160px;">
         </div>`;
     }
     document.getElementById('filterSettings').innerHTML = filterHTML;
     
     for (var i = 0; i < numFilters; i++) {
-        configureSlider("frequency", handles[i].x/canvas.width, 0, 1, frequencyHandler, i);
+        // configureSlider("frequency", handles[i].x/canvas.width, 0, 1, frequencyHandler, i);
         configureSlider("Q", resonance, 0, 20, resonanceHandler, i);
-        configureSlider("gain", gain, -10, 10, gainHandler, i);
+        // configureSlider("gain", gain, -10, 10, gainHandler, i);
         drawCurve();
     }
 }
