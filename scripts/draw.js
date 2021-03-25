@@ -27,6 +27,7 @@ var width;
 var height;
 
 var numFilters = 5;
+var noctaves = 11;
 
 function dbToY(db) {
   var y = (0.5 * height) - pixelsPerDb * db;
@@ -55,8 +56,6 @@ function drawCurve() {
     canvasContext.moveTo(0, 0);
 
     pixelsPerDb = (0.5 * height) / dbScale;
-    
-    var noctaves = 11;
     
     var frequencyHz = new Float32Array(width);
     var magResponse = new Float32Array(width);
@@ -161,7 +160,6 @@ function drawCurve() {
 
 function frequencyUIValueToCutoff(value) {
   var nyquist = context.sampleRate * 0.5;
-  var noctaves = Math.log(nyquist / 10.0) / Math.LN2;
   var v2 = Math.pow(2.0, noctaves * (value - 1.0));
   var cutoff = v2*nyquist;
   return cutoff;
@@ -200,45 +198,47 @@ function updateGain(value, index) {
   filters[index].gain.value = value;
 }
 
+function initAudioContext() {
+  window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  context = new AudioContext();
+}
 
 function initAudio() {
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    context = new AudioContext();
-    analyserNode = context.createAnalyser();
-    const audio = new Audio("project-22955.wav");
-    const source = context.createMediaElementSource(audio);
-    analyserNode.fftSize = 8192;
-    analyserNode.minDecibels = -100;
-    analyserNode.maxDecibels = 0;
+  const audio = new Audio("project-22955.wav");
+  const source = context.createMediaElementSource(audio);
+  analyserNode = context.createAnalyser();
+  analyserNode.fftSize = 8192;
+  analyserNode.minDecibels = -100;
+  analyserNode.maxDecibels = 0;
 
-    filters = []
-    for (var i = 0; i < numFilters; i++) {
-      var filter = context.createBiquadFilter();
-      filter.type = "allpass";
-      filter.Q.value = 5;
-      filter.frequency.value = 2000;
-      filter.gain.value = 2;
-      // filter.connect(context.destination);
-      filters.push(filter);
-    }
-    filters[numFilters-1].connect(context.destination);
-    filters[numFilters-1].connect(analyserNode);
-    for (var i = numFilters-1; i >=1; i--) {
-      filters[i-1].connect(filters[i])
-    }
-    source.connect(filters[0]);
-    audio.play();
+  filters = []
+  for (var i = 0; i < numFilters; i++) {
+    var filter = context.createBiquadFilter();
+    filter.type = "allpass";
+    filter.Q.value = 5;
+    filter.frequency.value = handles[i].frequency;
+    filter.gain.value = handles[i].gain;
+    filters.push(filter);
+  }
+  filters[numFilters-1].connect(context.destination);
+  filters[numFilters-1].connect(analyserNode);
+  for (var i = numFilters-1; i >=1; i--) {
+    filters[i-1].connect(filters[i])
+  }
+  source.connect(filters[0]);
+  audio.play();
 }
 
 function init() {
-    // context = new window.AudioContext || window.webkitAudioContext;
     canvas = document.getElementById('canvasID');
     canvasContext = canvas.getContext('2d');
     canvasWidth = parseFloat(window.getComputedStyle(canvas, null).width);
     canvasHeight = parseFloat(window.getComputedStyle(canvas, null).height);
-
     width = canvas.width;
     height = canvas.height;
+
+    pixelsPerDb = (0.5 * height) / dbScale;
+    initAudioContext();
 
     let container = document.querySelector("#eq-svg");
 
@@ -252,7 +252,7 @@ function init() {
     initAudio();
     var filterHTML = "";
     for (var i = 0; i < numFilters; i++) {
-        var uiCutoff = Math.floor(frequencyUIValueToCutoff(handles[i].x/canvas.width)*100)/100;
+        var uiCutoff = Math.floor(handles[i].frequency*100)/100;
         filterHTML += `<p>Filter ${i}: 
         <select onchange="changeFilterType(this.value, ${i});">
           <option value="allpass">AllPass</option>
@@ -307,7 +307,6 @@ window.onclick = function() {
     if (!started) {
         started = true;
         this.init();
-        // this.visualize();
     }
 }
 
@@ -317,6 +316,8 @@ class FilterHandle {
      let svgns = "http://www.w3.org/2000/svg";
      this.x = x;
      this.y = y;
+     this.frequency = frequencyUIValueToCutoff(this.x/width)
+     this.gain = yToDb(this.y)
      this.radius = radius;
      this.index = index;
 
@@ -357,6 +358,8 @@ class FilterHandle {
         let touch = this.screenToSVG(e.clientX, e.clientY);
         this.x = touch.x;
         this.y = touch.y;
+        this.frequency = frequencyUIValueToCutoff(this.x/width)
+        this.gain = yToDb(this.y)
         updateFrequency(frequencyUIValueToCutoff(this.x/width), this.index);
         updateGain(yToDb(this.y), this.index)
         this.parent.setAttribute("transform", `translate(${touch.x}, ${touch.y})`);
